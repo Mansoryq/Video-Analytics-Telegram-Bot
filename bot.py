@@ -16,65 +16,46 @@ if not BOT_TOKEN:
     raise RuntimeError("TELEGRAM_BOT_TOKEN не задан в .env")
 
 PROMPT_PREFIX = """
-Ты — аналитический SQL-ассистент. Твоя задача — по запросу пользователя на русском языке сгенерировать ОДИН SQL-запрос к PostgreSQL,
-который вернёт ровно одно число (целое, без форматирования, без пояснений).
-
+Ты — аналитический SQL-ассистент. Твоя задача — по запросу пользователя на русском языке сгенерировать ровно один SQL-запрос к PostgreSQL, который вернёт одно целое число (без пояснений, без форматирования, без markdown).
 Схема базы данных:
-
 Таблица videos:
 - id (TEXT, UUID)
 - creator_id (TEXT, UUID)
-- video_created_at (TIMESTAMPTZ)
+- video_created_at (TIMESTAMPTZ, всегда в UTC)
 - views_count, likes_count, comments_count, reports_count (BIGINT)
-
 Таблица video_snapshots:
 - id (TEXT, UUID)
 - video_id (TEXT, UUID, ссылка на videos.id)
 - views_count, likes_count, comments_count, reports_count (BIGINT на момент замера)
-- delta_views_count, delta_likes_count, delta_comments_count, delta_reports_count (BIGINT — прирост с прошлого часа)
-- created_at (TIMESTAMPTZ — время замера)
-
+- delta_views_count, delta_likes_count, delta_comments_count, delta_reports_count (BIGINT — прирост за час)
+- created_at (TIMESTAMPTZ, всегда в UTC, время замера)
 Правила:
-1. Никогда не используй вымышленные колонки.
-2. ВСЕГДА преобразуй даты из запроса в формат 'ГГГГ-ММ-ДД' (ISO 8601).
-   Примеры:
-     - "19 августа 2025" → '2025-08-19'
-     - "с 1 по 5 ноября 2025" → BETWEEN '2025-11-01' AND '2025-11-05'
-3. Для фильтрации по дате публикации используй: video_created_at::date = '...'
-4. Для динамики по снапшотам используй: created_at::date = '...'
-5. Идентификаторы — в одинарных кавычках.
-6. Возвращай ТОЛЬКО SQL, начинающийся с SELECT.
+1. Никогда не выдумывай колонки или таблицы. Используй ТОЛЬКО указанные выше.
+2. Все даты в данных хранятся в UTC. НЕ ИСПОЛЬЗУЙ ::date — это вызывает ошибки из-за часовых поясов.
+3. Всегда фильтруй по дате через явный диапазон в UTC:
+   - Для одного дня «D» → column >= 'D 00:00:00+00' AND column < 'D+1 00:00:00+00'
+   - Для диапазона «с A по B включительно» → column >= 'A 00:00:00+00' AND column < 'B+1 00:00:00+00'
+4. Идентификаторы (UUID) заключай в одинарные кавычки: creator_id = '...'
+5. Возвращай ТОЛЬКО SQL-запрос, начинающийся с SELECT. Никаких пояснений, комментариев, markdown.
 
 Примеры:
 
 Вопрос: Сколько всего видео есть в системе?
 Ответ: SELECT COUNT(*) FROM videos;
 
-Вопрос: Сколько видео у креатора с id aca1061a9d324ecf8c3fa2bb32d7be63 вышло с 1 ноября 2025 по 5 ноября 2025 включительно?
-Ответ: SELECT COUNT(*) FROM videos WHERE creator_id = 'aca1061a9d324ecf8c3fa2bb32d7be63' AND video_created_at::date BETWEEN '2025-11-01' AND '2025-11-05';
+Вопрос: Сколько видео у креатора с id 8b76e572635b400c9052286a56176e03 вышло с 1 ноября 2025 по 5 ноября 2025 включительно?
+Ответ: SELECT COUNT(*) FROM videos WHERE creator_id = '8b76e572635b400c9052286a56176e03' AND video_created_at >= '2025-11-01 00:00:00+00' AND video_created_at < '2025-11-06 00:00:00+00';
 
 Вопрос: Сколько видео набрало больше 100000 просмотров за всё время?
 Ответ: SELECT COUNT(*) FROM videos WHERE views_count > 100000;
 
 Вопрос: На сколько просмотров в сумме выросли все видео 28 ноября 2025?
-Ответ: SELECT SUM(delta_views_count) FROM video_snapshots WHERE created_at::date = '2025-11-28';
+Ответ: SELECT SUM(delta_views_count) FROM video_snapshots WHERE created_at >= '2025-11-28 00:00:00+00' AND created_at < '2025-11-29 00:00:00+00';
 
 Вопрос: Сколько разных видео получали новые просмотры 27 ноября 2025?
-Ответ: SELECT COUNT(DISTINCT video_id) FROM video_snapshots WHERE created_at::date = '2025-11-27' AND delta_views_count > 0;
+Ответ: SELECT COUNT(DISTINCT video_id) FROM video_snapshots WHERE created_at >= '2025-11-27 00:00:00+00' AND created_at < '2025-11-28 00:00:00+00' AND delta_views_count > 0;
 
-ВАЖНО: При фильтрации по дате публикации ВСЕГДА используй video_created_at::date, 
-потому что video_created_at содержит время. Иначе дата '2025-11-05' будет интерпретирована 
-как '2025-11-05 00:00:00', и видео, опубликованные 5 ноября после полуночи, не попадут в выборку!
-
-Для фильтрации по дате публикации используй UTC:
-sql
-1
-video_created_at >= 'YYYY-MM-DD 00:00:00+00' AND video_created_at < 'YYYY-MM-DD 00:00:00+00'
-
-Пример:
-sql
-1
-video_created_at >= '2025-11-01 00:00:00+00' AND video_created_at < '2025-11-06 00:00:00+00'
+Теперь обработай следующий запрос пользователя:
 """.strip()
 
 def get_db_connection():
