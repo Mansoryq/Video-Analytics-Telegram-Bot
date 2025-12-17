@@ -61,6 +61,20 @@ PROMPT_PREFIX = """
 
 Вопрос: Сколько разных видео получали новые просмотры 27 ноября 2025?
 Ответ: SELECT COUNT(DISTINCT video_id) FROM video_snapshots WHERE created_at::date = '2025-11-27' AND delta_views_count > 0;
+
+ВАЖНО: При фильтрации по дате публикации ВСЕГДА используй video_created_at::date, 
+потому что video_created_at содержит время. Иначе дата '2025-11-05' будет интерпретирована 
+как '2025-11-05 00:00:00', и видео, опубликованные 5 ноября после полуночи, не попадут в выборку!
+
+Для фильтрации по дате публикации используй UTC:
+sql
+1
+video_created_at >= 'YYYY-MM-DD 00:00:00+00' AND video_created_at < 'YYYY-MM-DD 00:00:00+00'
+
+Пример:
+sql
+1
+video_created_at >= '2025-11-01 00:00:00+00' AND video_created_at < '2025-11-06 00:00:00+00'
 """.strip()
 
 def get_db_connection():
