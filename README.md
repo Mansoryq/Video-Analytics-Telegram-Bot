@@ -54,32 +54,30 @@ Telegram-бот для аналитики видео-контента на **р�
 
 ### 1. Клонировать репозиторий и установить зависимости
 
-```bash
+```
 python -m venv venv
-source venv/bin/activate      # Linux / macOS
-# venv\Scripts\activate       # Windows
-
+source venv/bin/activate     
 pip install -r requirements.txt
 ```
 
 
 requirements.txt**:**
-
+```
 aiogram>=3.0.0
 psycopg2-binary
 python-dotenv
 aiohttp
-
+```
 
 ### **2. Настроить базу данных**
 
 Создайте БД:
-
+```
 CREATE DATABASE video_analytics;
-
+```
 
 Примените схему **schema.sql**:
-
+```
 CREATE TABLE videos (
     id TEXT PRIMARY KEY,
     creator_id TEXT NOT NULL,
@@ -103,7 +101,7 @@ CREATE TABLE video_snapshots (
     delta_reports_count BIGINT,
     created_at TIMESTAMPTZ NOT NULL
 );
-
+```
 
 Положите **videos.json** в корень проекта и загрузите данные:
 
@@ -120,18 +118,18 @@ ollama pull qwen2:1.5b
 ### **.env**
 
 Создайте файл **.env**:
-
+```
 TELEGRAM_BOT_TOKEN=123456789:AAFd...
 DATABASE_URL=postgresql://user@localhost:5432/video_analytics
-
+```
 > Токен получить у **@BotFather**
 
 
 
 ### **5. Запуск бота**
-
+```
 python bot.py
-
+```
 
 ## **Примеры запросов**
 
@@ -145,12 +143,12 @@ python bot.py
 
 
 ## **Структура проекта**
-
-## .
-
+```
+./
 ├── .env
 ├── videos.json
 ├── schema.sql
 ├── requirements.txt
 ├── load_data.py
 └── bot.py
+```
